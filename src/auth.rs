@@ -41,8 +41,8 @@ impl<'r> FromRequest<'r> for BasicAuth {
         let auth_header = request.headers().get_one("Authorization");
         if let Some(auth_header) = auth_header {
             if let Some(auth) = Self::from_authorization_header(auth_header) {
-                // Add validation check
-                if auth.username == String::from("admin") && auth.password == String::from("password123") {
+                println!("Username: {}, Password: {}", auth.username, auth.password); // Debug print
+                if auth.username == "Aladdin" && auth.password == "open sesame" {
                     return Outcome::Success(auth);
                 }
             }
