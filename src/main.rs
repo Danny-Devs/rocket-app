@@ -1,68 +1,45 @@
 #[macro_use]
 extern crate rocket;
 
+mod auth;
+
+use auth::BasicAuth;
 use rocket::response::status;
 use rocket::serde::json::{json, Value};
+use rocket_sync_db_pools::database;
 
-
-struct BasicAuth {
-    pub username: String,
-    pub password: String,
-}
-
-impl BasicAuth {
-    fn from_authorization_header(header: &str) -> Option<BasicAuth> {
-        let split = header.split_whitespace().collect::<Vec<_>>();
-        if split.len() != 2 {
-            return None;
-        }
-        if split[0] != "Basic" {
-            return None;
-        }
-
-        Self::from_base64_encoded(split[1])
-    }
-
-    fn from_base64_encoded(base64_string: &str) -> Option<BasicAuth> {
-        let decoded = base64::decode(base64_string).ok()?;
-        let decoded_str = String::from_utf8(decoded).ok()?;
-        let split = decoded_str.split(":").collect::<Vec<_>>();
-
-        if split.len() != 2 {
-            return None;
-        }
-
-        let (username, password) = (split[0].to_string(), split[1].to_string());
-        Some(BasicAuth {
-            username,
-            password,
-        })
-    }
-}
+#[database("sqlite")]
+#[allow(dead_code)]
+struct DbConn(diesel::SqliteConnection);
 
 #[get("/rustaceans")]
-fn get_rustaceans() -> Value {
+fn get_rustaceans(_auth: BasicAuth, _db: DbConn) -> Value {
     json!([{ "id": 1, "name": "John Doe" }, { "id": 2, "name": "Jane Doe" }])
 }
 
 #[get("/rustaceans/<id>")]
-fn view_rustacean(id: i32) -> Value {
+fn view_rustacean(id: i32, _auth: BasicAuth) -> Value {
     json!({ "id": id, "name": "John Doe", "email": "john@doe.com" })
 }
 
 #[post("/rustaceans", format = "json")]
-fn create_rustacean() -> Value {
+fn create_rustacean(_auth: BasicAuth) -> Value {
     json!({"id": 3, "name": "John Doe", "email": "john@doe.com"})
 }
 
 #[put("/rustaceans/<id>", format = "json")]
-fn update_rustacean(id: i32) -> Value {
+fn update_rustacean(id: i32, _auth: BasicAuth) -> Value {
     json!({ "id": id, "name": "John Doe", "email": "john@doe.com" })
 }
 
 #[delete("/rustaceans/<_id>")]
-fn delete_rustacean(_id: i32) -> status::NoContent {
+fn delete_rustacean(_id: i32, _auth: BasicAuth) -> status::NoContent {
     status::NoContent
+}
+
+#[catch(401)]
+fn unauthorized() -> Value {
+    json!("Unauthorized")
 }
 
 #[catch(404)]
@@ -83,7 +60,8 @@ async fn main() {
                 delete_rustacean,
             ],
         )
-        .register("/", catchers![not_found])
+        .register("/", catchers![not_found, unauthorized])
+        .attach(DbConn::fairing())
         .launch()
         .await;
 }
