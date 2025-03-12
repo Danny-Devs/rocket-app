@@ -3,6 +3,7 @@ extern crate rocket;
 
 mod auth;
 mod models;
+mod repositories;
 mod schema;
 
 use auth::BasicAuth;
@@ -12,6 +13,7 @@ use rocket::response::status;
 use rocket::serde::json::{json, Json, Value};
 use rocket_sync_db_pools::database;
 use schema::rustaceans;
+use repositories::RustaceanRepository;
 
 #[database("sqlite")]
 #[allow(dead_code)]
@@ -20,10 +22,7 @@ struct DbConn(diesel::SqliteConnection);
 #[get("/rustaceans")]
 async fn get_rustaceans(_auth: BasicAuth, db: DbConn) -> Value {
     db.run(|c| {
-        let rustaceans = rustaceans::table
-            .order(rustaceans::id.desc())
-            .limit(1000)
-            .load::<Rustacean>(c)
+        let rustaceans = RustaceanRepository::find_multiple(c, 1000)
             .expect("DB error");
         json!(rustaceans)
     })
@@ -33,9 +32,7 @@ async fn get_rustaceans(_auth: BasicAuth, db: DbConn) -> Value {
 #[get("/rustaceans/<id>")]
 async fn view_rustacean(id: i32, _auth: BasicAuth, db: DbConn) -> Value {
     db.run(move |c| {
-        let rustacean = rustaceans::table
-            .find(id)
-            .get_result::<Rustacean>(c)
+        let rustacean = RustaceanRepository::find(c, id)
             .expect("DB error");
         json!(rustacean)
     })
@@ -49,9 +46,7 @@ async fn create_rustacean(
     new_rustacean: Json<NewRustacean>,
 ) -> Value {
     db.run(|c| {
-        let result = diesel::insert_into(rustaceans::table)
-            .values(new_rustacean.into_inner())
-            .execute(c)
+        let result = RustaceanRepository::create(c, new_rustacean.into_inner())
             .expect("DB error when inserting");
         json!(result)
     })
@@ -76,12 +71,7 @@ async fn update_rustacean(
             return Err(status::NotFound(json!("Rustacean not found")));
         }
 
-        let result = diesel::update(rustaceans::table.find(id))
-            .set((
-                rustaceans::name.eq(rustacean.name.to_owned()),
-                rustaceans::email.eq(rustacean.email.to_owned()),
-            ))
-            .execute(c)
+        let result = RustaceanRepository::update(c, id, rustacean.into_inner())
             .expect("DB error when updating");
         Ok(json!(result))
     })
@@ -91,8 +81,7 @@ async fn update_rustacean(
 #[delete("/rustaceans/<id>")]
 async fn delete_rustacean(id: i32, _auth: BasicAuth, db: DbConn) -> status::NoContent {
     db.run(move |c| {
-        diesel::delete(rustaceans::table.find(id))
-            .execute(c)
+        RustaceanRepository::delete(c, id)
             .expect("DB error when deleting");
         status::NoContent
     })
