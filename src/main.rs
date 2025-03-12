@@ -7,7 +7,7 @@ mod repositories;
 mod schema;
 
 use auth::BasicAuth;
-use diesel::NotFound;
+use diesel::result::Error::NotFound;
 use models::{NewRustacean, Rustacean};
 use repositories::RustaceanRepository;
 use rocket::http::Status;
