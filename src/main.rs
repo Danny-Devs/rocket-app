@@ -7,6 +7,7 @@ mod repositories;
 mod schema;
 
 use auth::BasicAuth;
+use diesel::NotFound;
 use models::{NewRustacean, Rustacean};
 use repositories::RustaceanRepository;
 use rocket::http::Status;
@@ -34,7 +35,10 @@ async fn view_rustacean(id: i32, _auth: BasicAuth, db: DbConn) -> Result<Value, 
     db.run(move |c| {
         RustaceanRepository::find(c, id)
             .map(|rustacean| json!(rustacean))
-            .map_err(|e| Custom(Status::InternalServerError, json!(e.to_string())))
+            .map_err(|e| match e {
+                NotFound => Custom(Status::NotFound, json!(e.to_string())),
+                _ => Custom(Status::InternalServerError, json!(e.to_string())),
+            })
     })
     .await
 }
@@ -61,6 +65,11 @@ async fn update_rustacean(
     rustacean: Json<Rustacean>,
 ) -> Result<Value, Custom<Value>> {
     db.run(move |c| {
+        RustaceanRepository::find(c, id).map_err(|e| match e {
+            NotFound => Custom(Status::NotFound, json!(e.to_string())),
+            _ => Custom(Status::InternalServerError, json!(e.to_string())),
+        })?;
+
         RustaceanRepository::update(c, id, rustacean.into_inner())
             .map(|rustacean| json!(rustacean))
             .map_err(|e| Custom(Status::InternalServerError, json!(e.to_string())))
@@ -75,6 +84,11 @@ async fn delete_rustacean(
     db: DbConn,
 ) -> Result<status::NoContent, Custom<Value>> {
     db.run(move |c| {
+        RustaceanRepository::find(c, id).map_err(|e| match e {
+            NotFound => Custom(Status::NotFound, json!(e.to_string())),
+            _ => Custom(Status::InternalServerError, json!(e.to_string())),
+        })?;
+
         RustaceanRepository::delete(c, id)
             .map(|_| status::NoContent)
             .map_err(|e| Custom(Status::InternalServerError, json!(e.to_string())))
