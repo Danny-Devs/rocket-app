@@ -10,10 +10,12 @@ use auth::BasicAuth;
 use diesel::result::Error::NotFound;
 use models::{NewRustacean, Rustacean};
 use repositories::RustaceanRepository;
+use rocket::fairing::AdHoc;
 use rocket::http::Status;
 use rocket::response::status;
 use rocket::response::status::Custom;
 use rocket::serde::json::{json, Json, Value};
+use rocket::{Build, Rocket};
 use rocket_sync_db_pools::database;
 
 #[database("sqlite")]
@@ -114,6 +116,22 @@ fn internal_server_error() -> Value {
     json!("Internal Server Error: Database connection error")
 }
 
+async fn run_db_migrations(rocket: Rocket<Build>) -> Rocket<Build> {
+    use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+
+    const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
+    DbConn::get_one(&rocket)
+        .await
+        .expect("Unable to retrieve connection")
+        .run(|c| {
+            c.run_pending_migrations(MIGRATIONS)
+                .expect("Failed to run migrations");
+        })
+        .await;
+
+    rocket
+}
+
 #[rocket::main]
 async fn main() {
     let _ = rocket::build()
@@ -137,6 +155,7 @@ async fn main() {
             ],
         )
         .attach(DbConn::fairing())
+        .attach(AdHoc::on_ignite("Diesel migrations", run_db_migrations))
         .launch()
         .await;
 }
