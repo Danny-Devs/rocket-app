@@ -65,10 +65,9 @@ async fn update_rustacean(
     rustacean: Json<Rustacean>,
 ) -> Result<Value, Custom<Value>> {
     db.run(move |c| {
-        RustaceanRepository::find(c, id).map_err(|e| match e {
-            NotFound => Custom(Status::NotFound, json!(e.to_string())),
-            _ => Custom(Status::InternalServerError, json!(e.to_string())),
-        })?;
+        if RustaceanRepository::find(c, id).is_err() {
+            return Err(Custom(Status::NotFound, json!("Rustacean not found")));
+        }
 
         RustaceanRepository::update(c, id, rustacean.into_inner())
             .map(|rustacean| json!(rustacean))
@@ -84,10 +83,9 @@ async fn delete_rustacean(
     db: DbConn,
 ) -> Result<status::NoContent, Custom<Value>> {
     db.run(move |c| {
-        RustaceanRepository::find(c, id).map_err(|e| match e {
-            NotFound => Custom(Status::NotFound, json!(e.to_string())),
-            _ => Custom(Status::InternalServerError, json!(e.to_string())),
-        })?;
+        if RustaceanRepository::find(c, id).is_err() {
+            return Err(Custom(Status::NotFound, json!("Rustacean not found")));
+        }
 
         RustaceanRepository::delete(c, id)
             .map(|_| status::NoContent)
